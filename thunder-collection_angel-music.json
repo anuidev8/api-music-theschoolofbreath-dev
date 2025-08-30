@@ -1,0 +1,137 @@
+{
+    "client": "Thunder Client",
+    "collectionName": "angel-music",
+    "dateExported": "2023-12-21T16:12:47.177Z",
+    "version": "1.1",
+    "folders": [],
+    "requests": [
+        {
+            "_id": "4046726f-5940-444d-87ee-84c1145d0637",
+            "colId": "4bf553a9-e61f-45ab-8c8a-96c2ceecd5e2",
+            "containerId": "",
+            "name": "auth",
+            "url": "https://angel-music.vercel.app/auth/login",
+            "method": "POST",
+            "sortNum": 10000,
+            "created": "2023-12-21T00:08:32.475Z",
+            "modified": "2023-12-21T05:20:28.537Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"email\":\"codepascasio@gmail.com\",\n  \"password\":\"usuario1\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "58e28cf0-1166-4af5-b71f-97a7982c775c",
+            "colId": "4bf553a9-e61f-45ab-8c8a-96c2ceecd5e2",
+            "containerId": "",
+            "name": "register",
+            "url": "http://localhost:3001/auth/register",
+            "method": "POST",
+            "sortNum": 20000,
+            "created": "2023-12-21T00:49:58.098Z",
+            "modified": "2023-12-21T00:54:47.284Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "json",
+                "raw": "{\n  \"email\":\"prueba@gmail.com\",\n  \"password\":\"usuario1\",\n  \"fullName\":\"usuario\"\n}",
+                "form": []
+            },
+            "tests": []
+        },
+        {
+            "_id": "037a51d9-3bc9-41ed-894c-e861a07b9e3b",
+            "colId": "4bf553a9-e61f-45ab-8c8a-96c2ceecd5e2",
+            "containerId": "",
+            "name": "music",
+            "url": "http://localhost:3001/musics",
+            "method": "GET",
+            "sortNum": 30000,
+            "created": "2023-12-21T00:55:02.389Z",
+            "modified": "2023-12-21T05:34:28.018Z",
+            "headers": [
+                {
+                    "name": "ssid",
+                    "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NTgzOGNkNzJmYjA2M2VkZWJiYjJlNTMiLCJpYXQiOjE3MDMxMjAwOTV9.e5V8LX9BpmEGDn5ddeHZltsdK0b2XBhwlZxbH-nQ2Vs"
+                }
+            ],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "46440c79-e5f2-444e-aa5e-42c103703a51",
+            "colId": "4bf553a9-e61f-45ab-8c8a-96c2ceecd5e2",
+            "containerId": "",
+            "name": "music detail",
+            "url": "http://localhost:3001/musics/detail/ANXIETY_RELIEF",
+            "method": "GET",
+            "sortNum": 40000,
+            "created": "2023-12-21T00:56:01.427Z",
+            "modified": "2023-12-21T00:56:34.432Z",
+            "headers": [],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "4ea84df3-63ae-4ba9-9be0-0059ebb8691b",
+            "colId": "4bf553a9-e61f-45ab-8c8a-96c2ceecd5e2",
+            "containerId": "",
+            "name": "one cliente",
+            "url": "http://localhost:3001/user/me",
+            "method": "GET",
+            "sortNum": 50000,
+            "created": "2023-12-21T01:06:57.448Z",
+            "modified": "2023-12-21T01:07:27.026Z",
+            "headers": [
+                {
+                    "name": "ssid",
+                    "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NTgzOGNkNzJmYjA2M2VkZWJiYjJlNTMiLCJpYXQiOjE3MDMxMjAwOTV9.e5V8LX9BpmEGDn5ddeHZltsdK0b2XBhwlZxbH-nQ2Vs"
+                }
+            ],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "9dcffcfd-c613-41f0-9da1-f4309f53e3fd",
+            "colId": "4bf553a9-e61f-45ab-8c8a-96c2ceecd5e2",
+            "containerId": "",
+            "name": "add favoprite",
+            "url": "http://localhost:3001/user/add-favorite/music/658381dce7f60aa73b6a0cad/",
+            "method": "PUT",
+            "sortNum": 60000,
+            "created": "2023-12-21T02:54:35.248Z",
+            "modified": "2023-12-21T03:05:35.993Z",
+            "headers": [
+                {
+                    "name": "ssid",
+                    "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NTgzOGNkNzJmYjA2M2VkZWJiYjJlNTMiLCJpYXQiOjE3MDMxMjAwOTV9.e5V8LX9BpmEGDn5ddeHZltsdK0b2XBhwlZxbH-nQ2Vs"
+                }
+            ],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "b5bdf67a-f0f0-4659-b192-659b001c572f",
+            "colId": "4bf553a9-e61f-45ab-8c8a-96c2ceecd5e2",
+            "containerId": "",
+            "name": "favoritas",
+            "url": "http://localhost:3001/musics/favorites",
+            "method": "GET",
+            "sortNum": 70000,
+            "created": "2023-12-21T05:34:58.505Z",
+            "modified": "2023-12-21T05:35:14.774Z",
+            "headers": [
+                {
+                    "name": "ssid",
+                    "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2NTgzOGNkNzJmYjA2M2VkZWJiYjJlNTMiLCJpYXQiOjE3MDMxMjAwOTV9.e5V8LX9BpmEGDn5ddeHZltsdK0b2XBhwlZxbH-nQ2Vs"
+                }
+            ],
+            "params": [],
+            "tests": []
+        }
+    ]
+}
