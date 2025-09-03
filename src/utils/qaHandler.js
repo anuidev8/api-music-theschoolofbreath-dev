@@ -4,7 +4,7 @@ const guideService = require('../services/guideService');
 
 // OpenAI Assistant configuration
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const ASSISTANT_ID = 'asst_f2WLBYRHz7OUUwPMn69U1x1p';
+const ASSISTANT_ID = 'asst_MeHsxxAOO77rSU2KKA2vCXqF';
 
 const OPENAI_HEADERS = {
   'Authorization': `Bearer ${OPENAI_API_KEY}`,
@@ -47,7 +47,7 @@ function cleanResponse(answer) {
     .trim();
 }
 
-// Main handler function for user questions
+// RAG: Main handler with PRE-GENERATED embeddings (super fast!)
 async function handleUserQuestion(query, selectedGuide = 'abhi') {
   const lowerCaseQuery = query.toLowerCase().trim();
 
@@ -151,6 +151,7 @@ async function getOpenAIResponse(query, selectedGuide = 'abhi') {
       { 
         assistant_id: ASSISTANT_ID,
         instructions: `INSTRUCTIONS:
+        Response according your knowledge base only and avoid making up information.
 - Always respond in JSON. Return valid JSON only (no markdown, no emojis, no citations, no file names, no timestamps).
 - First, try to match against the FAQ-style knowledge base. Preferred record format:
 {
@@ -173,7 +174,9 @@ OUTPUT JSON SCHEMA (must match exactly):
   
   "answer": "string",
   "shortcuts": ["string", ...]
-}`
+}`,
+model: "gpt-4-turbo",
+tools: [{ type: "file_search" }]
       },
       { headers: OPENAI_HEADERS }
     );
@@ -343,6 +346,7 @@ function testCleanResponse() {
 // testCleanResponse();
 
 module.exports = {
+  // Core RAG functions
   handleUserQuestion,
   getOpenAIResponse,
   logUnansweredQuestion,
