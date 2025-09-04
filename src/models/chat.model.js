@@ -52,6 +52,11 @@ const chatHistorySchema = new mongoose.Schema({
     ipAddress: String,
     platform: String,
     deviceType: String,
+    // Persisted OpenAI Assistants API thread per chat session
+    openAIThreadId: {
+      type: String,
+      required: false
+    },
     selectedGuide: {
       type: String,
       enum: ['abhi', 'ganesha'],

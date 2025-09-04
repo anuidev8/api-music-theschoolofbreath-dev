@@ -43,7 +43,7 @@ class ChatService {
       await chatHistory.addMessage(userMessage);
       
       // Process the user's question with guide-specific personality
-      const botResponse = await handleUserQuestion(message, selectedGuide);
+      const botResponse = await handleUserQuestion(message, selectedGuide, currentSessionId);
       
       // Map the source to a valid enum value
       // The valid enum values are: 'local', 'openai', 'user'

@@ -1,6 +1,7 @@
 // utils/qaHandler.js - OpenAI Assistant implementation
 const axios = require('axios');
 const guideService = require('../services/guideService');
+const ChatHistory = require('../models/chat.model');
 
 // OpenAI Assistant configuration
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -48,7 +49,7 @@ function cleanResponse(answer) {
 }
 
 // RAG: Main handler with PRE-GENERATED embeddings (super fast!)
-async function handleUserQuestion(query, selectedGuide = 'abhi') {
+async function handleUserQuestion(query, selectedGuide = 'abhi', sessionId = null) {
   const lowerCaseQuery = query.toLowerCase().trim();
 
   // Greeting detection (partial match)
@@ -72,7 +73,7 @@ async function handleUserQuestion(query, selectedGuide = 'abhi') {
   }
 
   try {
-    const assistantResponse = await getOpenAIResponse(query, selectedGuide);
+    const assistantResponse = await getOpenAIResponse(query, selectedGuide, sessionId);
     
     // Handle both JSON and plain text responses
     if (assistantResponse && typeof assistantResponse === 'object' && assistantResponse.shortcuts) {
@@ -104,7 +105,7 @@ async function handleUserQuestion(query, selectedGuide = 'abhi') {
 }
 
 // Get response from OpenAI Assistant
-async function getOpenAIResponse(query, selectedGuide = 'abhi') {
+async function getOpenAIResponse(query, selectedGuide = 'abhi', sessionId = null) {
   if (!OPENAI_API_KEY || !ASSISTANT_ID) {
     console.error('OpenAI API key or Assistant ID not found');
     return "I apologize, but I'm having trouble accessing my knowledge base right now. Please try again later.";
@@ -113,31 +114,100 @@ async function getOpenAIResponse(query, selectedGuide = 'abhi') {
   try {
     const guideContext = await guideService.getGuideSystemPrompt(selectedGuide);
 
-    // 1. Create a thread with metadata (required by latest API)
-    const threadRes = await axios.post('https://api.openai.com/v1/threads', {
-      metadata: {
-        source: 'breathwork_app',
-        guide: selectedGuide,
-        timestamp: new Date().toISOString()
+    // Try to reuse a thread per chat session; otherwise create and persist
+    let threadId = null;
+    if (sessionId) {
+      try {
+        const chatHistory = await ChatHistory.findOne({ sessionId });
+        threadId = chatHistory?.metadata?.openAIThreadId || null;
+      } catch (e) {
+        console.warn('Unable to load session for thread reuse:', e?.message || e);
       }
-    }, { headers: OPENAI_HEADERS });
-    
-    if (!threadRes.data?.id) {
-      throw new Error('Failed to create thread: No thread ID returned');
     }
-    
-    const threadId = threadRes.data.id;
-    console.log('Thread created:', threadId);
+    if (!threadId) {
+      const threadRes = await axios.post('https://api.openai.com/v1/threads', {
+        metadata: {
+          source: 'breathwork_app',
+          guide: selectedGuide,
+          timestamp: new Date().toISOString()
+        }
+      }, { headers: OPENAI_HEADERS });
+      if (!threadRes.data?.id) {
+        throw new Error('Failed to create thread: No thread ID returned');
+      }
+      threadId = threadRes.data.id;
+      console.log('Thread created:', threadId);
+      if (sessionId) {
+        try {
+          const chatHistory = await ChatHistory.findOne({ sessionId });
+          if (chatHistory) {
+            chatHistory.metadata = {
+              ...(chatHistory.metadata || {}),
+              openAIThreadId: threadId,
+              selectedGuide: selectedGuide,
+              lastActive: new Date()
+            };
+            await chatHistory.save();
+          }
+        } catch (persistErr) {
+          console.error('Failed to persist thread ID to session:', persistErr?.message || persistErr);
+        }
+      }
+    }
 
     // 2. Add user message with proper content structure
-    const messageRes = await axios.post(
-      `https://api.openai.com/v1/threads/${threadId}/messages`,
-      {
-        role: 'user',
-        content: `Context: ${guideContext}\n\nUser Question: ${query}`
-      },
-      { headers: OPENAI_HEADERS }
-    );
+    let messageRes;
+    try {
+      messageRes = await axios.post(
+        `https://api.openai.com/v1/threads/${threadId}/messages`,
+        {
+          role: 'user',
+          content: `Context: ${guideContext}\n\nUser Question: ${query}`
+        },
+        { headers: OPENAI_HEADERS }
+      );
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        // Thread invalid; recreate and persist once then retry
+        const newThreadRes = await axios.post('https://api.openai.com/v1/threads', {
+          metadata: {
+            source: 'breathwork_app',
+            guide: selectedGuide,
+            timestamp: new Date().toISOString()
+          }
+        }, { headers: OPENAI_HEADERS });
+        if (!newThreadRes.data?.id) {
+          throw new Error('Failed to recreate thread: No thread ID returned');
+        }
+        threadId = newThreadRes.data.id;
+        if (sessionId) {
+          try {
+            const chatHistory = await ChatHistory.findOne({ sessionId });
+            if (chatHistory) {
+              chatHistory.metadata = {
+                ...(chatHistory.metadata || {}),
+                openAIThreadId: threadId,
+                selectedGuide: selectedGuide,
+                lastActive: new Date()
+              };
+              await chatHistory.save();
+            }
+          } catch (persistErr) {
+            console.error('Failed to persist recreated thread ID to session:', persistErr?.message || persistErr);
+          }
+        }
+        messageRes = await axios.post(
+          `https://api.openai.com/v1/threads/${threadId}/messages`,
+          {
+            role: 'user',
+            content: `Context: ${guideContext}\n\nUser Question: ${query}`
+          },
+          { headers: OPENAI_HEADERS }
+        );
+      } else {
+        throw err;
+      }
+    }
     
     if (!messageRes.data?.id) {
       throw new Error('Failed to add message: No message ID returned');
@@ -150,6 +220,7 @@ async function getOpenAIResponse(query, selectedGuide = 'abhi') {
       `https://api.openai.com/v1/threads/${threadId}/runs`,
       { 
         assistant_id: ASSISTANT_ID,
+        
         instructions: `INSTRUCTIONS:
         Response according your knowledge base only and avoid making up information.
 - Always respond in JSON. Return valid JSON only (no markdown, no emojis, no citations, no file names, no timestamps).
@@ -164,10 +235,15 @@ async function getOpenAIResponse(query, selectedGuide = 'abhi') {
 - The "question" field must repeat the user's query (or a normalized version of it).
 - Keep "answer" concise (max 2-3 sentences), plain text only.
 - "keywords" should help future search/discovery (3-10 concise terms).
-- Add a "shortcuts" array with 2-5 related user questions that the user may want to ask next.
-  - If the matched KB item contains "followUpShortcuts", relatedFaqs or "relatedFaqIds", prefer those when relevant.
+- Add a "shortcuts" array with 2-5 related user questions that the user may want to ask next , if .
+  - If the matched FAQ item contains  "relatedFaqIds", find the FAQ items with the same "relatedFaqIds" and add the "question" field to the "shortcuts" array.
   - Otherwise, generate shortcuts from semantically adjacent topics in the knowledge base or documents.
 - If sources are insufficient to answer, still return the same JSON shape with a brief, honest "answer" and empty arrays for "keywords" and "shortcuts".
+
+Additional Requirements:
+	•	Always append these two links to the final "answer" field as plain text depending of question:
+	•	www.youtube.com/Theschoolofbreath
+	•	https://www.meditatewithabhi.com
 
 OUTPUT JSON SCHEMA (must match exactly):
 {
