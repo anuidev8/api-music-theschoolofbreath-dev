@@ -6,7 +6,7 @@ const ChatHistory = require('../models/chat.model');
 // OpenAI Assistant configuration
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ASSISTANT_ID = 'asst_MeHsxxAOO77rSU2KKA2vCXqF';
-
+const VECTOR_STORE_ID = process.env.VECTOR_STORE_ID; // for file_search
 const OPENAI_HEADERS = {
   'Authorization': `Bearer ${OPENAI_API_KEY}`,
   'Content-Type': 'application/json',
@@ -200,6 +200,9 @@ async function getOpenAIResponse(query, selectedGuide = 'abhi', sessionId = null
       `https://api.openai.com/v1/threads/${threadId}/runs`,
       { 
         assistant_id: ASSISTANT_ID,
+        model: "gpt-4.1-mini",
+        tools: [{ type: "file_search" }],
+        ...(VECTOR_STORE_ID ? { tool_resources: { file_search: { vector_store_ids: [VECTOR_STORE_ID] } } } : {}),
         
         instructions:`${guideContext}
 
@@ -244,9 +247,7 @@ EMPTY CASE
 { "answer": "", "shortcuts": [] }
 
 VALIDATION
-• If your draft is not valid JSON per the schema, regenerate until it is valid.`,
-model: "gpt-4-turbo",
-tools: [{ type: "file_search" }]
+• If your draft is not valid JSON per the schema, regenerate until it is valid.`
       },
       { headers: OPENAI_HEADERS }
     );
