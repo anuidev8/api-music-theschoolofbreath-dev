@@ -17,34 +17,14 @@ const OPENAI_HEADERS = {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Clean response function to remove markdown and formatting
+// Clean response function (narrow removals, keep [] and ())
 function cleanResponse(answer) {
-  console.log('Cleaning response:', answer);
-  return answer
-    // Remove markdown formatting
-    .replace(/\*\*(.*?)\*\*/g, '$1') // Remove **bold**
-    .replace(/\*(.*?)\*/g, '$1')     // Remove *italic*
-    .replace(/##\s*/g, '')           // Remove ## headers
-    .replace(/#\s*/g, '')            // Remove # headers
-    .replace(/-\s*/g, '')            // Remove - lists
-    
-    // Remove source citations and references
-    .replace(/【[^】]*】/g, '')        // Remove 【】 brackets and content
-    .replace(/\[[^\]]*\]/g, '')      // Remove [] brackets and content
-    .replace(/\([^)]*\)/g, '')       // Remove () brackets and content
-    .replace(/†source/g, '')         // Remove †source
-    .replace(/\d+:\d+†source/g, '') // Remove timestamp†source like "4:15†source"
-    .replace(/\d+:\d+/g, '')        // Remove standalone timestamps
-    
-    // Remove extra whitespace and formatting
-    .replace(/\n\s*\n/g, '\n')      // Remove extra line breaks
-    .replace(/^\s+|\s+$/g, '')      // Trim whitespace
-    .replace(/[🌟🌼🙏😊✨💫]/g, '') // Remove emojis
-    .replace(/\s+/g, ' ')           // Normalize spaces
-    
-    // Clean up any remaining artifacts
-    .replace(/\s+/g, ' ')           // Normalize spaces again
-    .replace(/\n\s+/g, '\n')        // Clean up line start spaces
-    .replace(/\s+\n/g, '\n')        // Clean up line end spaces
+  return String(answer || '')
+    .replace(/【[^】]*】/g, '')        // Remove in-house citations
+    .replace(/\b\d+:\d+†source\b/g, '')
+    .replace(/†source\b/g, '')
+    .replace(/[🌟🌼🙏😊✨💫]/g, '')    // Remove emojis
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
@@ -221,36 +201,50 @@ async function getOpenAIResponse(query, selectedGuide = 'abhi', sessionId = null
       { 
         assistant_id: ASSISTANT_ID,
         
-        instructions: `INSTRUCTIONS:
-        Response according your knowledge base only and avoid making up information.
-- Always respond in JSON. Return valid JSON only (no markdown, no emojis, no citations, no file names, no timestamps).
-- First, try to match against the FAQ-style knowledge base. Preferred record format:
-{
-  "category": "string (e.g., general, courses, practices)",
-  "question": "string (FAQ-style user question)",
-  "answer": "string (clear response text)",
-  "keywords": ["list", "of", "related", "searchable", "terms"]
-}
-- If nothing matches in FAQ, consult the uploaded documents (PDF, TXT, DOCX, chunked text, embeddings, etc.) and generate the best possible answer in the SAME JSON format.
-- The "question" field must repeat the user's query (or a normalized version of it).
-- Keep "answer" concise (max 2-3 sentences), plain text only.
-- "keywords" should help future search/discovery (3-10 concise terms).
-- Add a "shortcuts" array with 2-5 related user questions that the user may want to ask next , if .
-  - If the matched FAQ item contains  "relatedFaqIds", find the FAQ items with the same "relatedFaqIds" and add the "question" field to the "shortcuts" array.
-  - Otherwise, generate shortcuts from semantically adjacent topics in the knowledge base or documents.
-- If sources are insufficient to answer, still return the same JSON shape with a brief, honest "answer" and empty arrays for "keywords" and "shortcuts".
+        instructions:`${guideContext}
 
-Additional Requirements:
-	•	Always append these two links to the final "answer" field as plain text depending of question:
-	•	www.youtube.com/Theschoolofbreath
-	•	https://www.meditatewithabhi.com
+INSTRUCTIONS:
+ROLE
+• Act as the selected guide (“${selectedGuide}”) for The School of Breath.
 
-OUTPUT JSON SCHEMA (must match exactly):
-{
-  
-  "answer": "string",
-  "shortcuts": ["string", ...]
-}`,
+SOURCES
+• Use ONLY the provided knowledge base: FAQs format and files via file_search.
+• Do NOT invent facts. If information is missing, return empty fields.
+
+OUTPUT
+• Return VALID JSON ONLY. No prose outside JSON. No code fences. No emojis.
+• Keys exactly: answer, shortcuts.
+
+MATCHING FLOW
+1) Try to match the user query to the best FAQ.
+2) You can also consult the uploaded documents via file_search for supporting information.
+3) If nothing relevant is found, is nothing matched produce empty fields per schema.
+
+CONTENT RULES
+• “answer”: Markdown format for  paragraphs, headings,bold words and lists.
+• Append at the very end of “answer”: " www.youtube.com/Theschoolofbreath www.meditatewithabhi.com"
+• “shortcuts”: up to 4 related questions  and knowledge base.
+
+MARKDOWN RULES (CommonMark/GitHub basics)
+• Paragraphs: separate blocks with a single blank line; avoid trailing spaces.
+• Headings: "# ", "## ", "### " when helpful; prefer plain paragraphs unless sectioning is requested.
+• Emphasis: **bold** (or __bold__), *italic* (or _italic_). Use sparingly.
+• Bulleted lists: each item starts with "- " (or "* "); add a blank line before the list; one item per line.
+• Ordered lists: "1. ", "2. ", … with exactly one space after the marker.
+• Nested lists: indent sub-items by 2–4 spaces under the parent item.
+• Links: don't use links.
+• Code blocks: avoid unless explicitly requested; don’t include fenced code in normal answers.
+• Tables/images/footnotes: avoid unless the user asks.
+• Do not use raw HTML; do not use emojis.
+
+SCHEMA (MUST MATCH EXACTLY)
+{ "answer": "<Markdown string>",  "shortcuts": ["string"] }
+
+EMPTY CASE
+{ "answer": "", "shortcuts": [] }
+
+VALIDATION
+• If your draft is not valid JSON per the schema, regenerate until it is valid.`,
 model: "gpt-4-turbo",
 tools: [{ type: "file_search" }]
       },
@@ -349,16 +343,27 @@ tools: [{ type: "file_search" }]
     try {
       const jsonResponse = JSON.parse(content);
       
-      // Validate JSON structure and extract shortcuts
+      // Validate JSON structure and extract shortcuts, bullets and steps
       if (jsonResponse && typeof jsonResponse === 'object') {
+        const baseAnswer = jsonResponse.answer || "I apologize, but I couldn't generate a proper response.";
+        const bullets = Array.isArray(jsonResponse.bullets) ? jsonResponse.bullets.filter(Boolean) : [];
+        const steps = Array.isArray(jsonResponse.steps) ? jsonResponse.steps.filter(Boolean) : [];
+
+        let composed = baseAnswer;
+        if (steps.length > 0) {
+          const numbered = steps.map((s, i) => `${i + 1}) ${s}`).join('\n');
+          composed += `\n\n${numbered}`;
+        }
+        if (bullets.length > 0) {
+          const dotted = bullets.map((b) => `• ${b}`).join('\n');
+          composed += `\n\n${dotted}`;
+        }
+
         const response = {
-          answer: jsonResponse.answer || "I apologize, but I couldn't generate a proper response.",
+          answer: cleanResponse(composed),
           shortcuts: jsonResponse.shortcuts || [],
           source: 'openai_assistant_json'
         };
-        
-        // Clean the answer text
-        response.answer = cleanResponse(response.answer);
         
         return response;
       }
